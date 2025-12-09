@@ -84,3 +84,35 @@ npm run test:emulator
 1. Test with k9s or other TUI app
 2. Verify MCP server integration end-to-end
 3. Consider image rendering (PNG export via agg)
+
+---
+
+## Checkpoint 4: 2025-12-09 - K9s Integration Test
+
+### Goal
+Test terminal emulator with real k9s TUI application.
+
+### Verification
+```bash
+npm run test:k9s
+# Output in tests/04-k9s/output/
+```
+
+### Results
+- k9s renders correctly with full TUI:
+  - Box drawing characters (─, │, ┌, └, etc.)
+  - Table columns with data
+  - k9s logo with emojis
+  - Navigation between views works
+- Screenshots capture correct screen state
+- Output files: step-01-k9s.txt, step-02-deployments.txt
+
+### Feedback
+- @xterm/headless handles complex TUI apps flawlessly
+- Box drawing and unicode render correctly
+- This validates the terminal emulator for production use
+
+### Next Steps
+1. Verify MCP server shell_snapshot works end-to-end
+2. Consider adding image export (PNG via agg or canvas)
+3. Add shell_wait_for tool for AI agent use

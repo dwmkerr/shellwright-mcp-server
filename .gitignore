@@ -3,5 +3,4 @@ dist/
 *.log
 .env
 .DS_Store
-examples/*/output/
-examples/screenshots/
+examples/*/screenshots/

@@ -15,7 +15,7 @@ import os
 import sys
 
 SERVER_URL = os.environ.get("SHELLWRIGHT_URL", "http://localhost:7498")
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "screenshots")
 
 
 async def call_tool(session, name: str, args: dict):
@@ -38,7 +38,7 @@ async def run():
 
     print("K9s Example")
     print(f"Server: {SERVER_URL}")
-    print(f"Output: {OUTPUT_DIR}\n")
+    print(f"Screenshots: {OUTPUT_DIR}\n")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 

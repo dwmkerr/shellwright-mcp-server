@@ -15,6 +15,7 @@ import os
 import sys
 
 SERVER_URL = os.environ.get("SHELLWRIGHT_URL", "http://localhost:7498")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "screenshots")
 
 
 async def call_tool(session, name: str, args: dict):
@@ -35,6 +36,8 @@ async def run():
         print("Error: pip install mcp", file=sys.stderr)
         sys.exit(1)
 
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     try:
         async with streamablehttp_client(f"{SERVER_URL}/mcp") as (read, write, _):
             async with ClientSession(read, write) as session:
@@ -51,11 +54,12 @@ async def run():
                     "delay_ms": 500,
                 })
 
-                # Get snapshot and print it
-                snapshot = await call_tool(session, "shell_snapshot", {
+                # Screenshot
+                await call_tool(session, "shell_screenshot", {
                     "session_id": session_id,
+                    "output": f"{OUTPUT_DIR}/echo",
                 })
-                print(snapshot)
+                print(f"{OUTPUT_DIR}/echo.png")
 
                 # Stop session
                 await call_tool(session, "shell_stop", {"session_id": session_id})

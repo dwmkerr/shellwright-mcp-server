@@ -11,6 +11,8 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import xterm from "@xterm/headless";
 const { Terminal } = xterm;
+import { bufferToSvg } from "./lib/buffer-to-svg.js";
+import { Resvg } from "@resvg/resvg-js";
 
 const PORT = parseInt(process.env.PORT || "7498", 10);
 const BACKGROUND = process.argv.includes("--background") || process.argv.includes("-b");
@@ -211,7 +213,7 @@ const createServer = () => {
 
   server.tool(
     "shell_screenshot",
-    "Capture terminal state to files (raw ANSI + rendered screen)",
+    "Capture terminal state to files (txt, svg, png with colors)",
     {
       session_id: z.string().describe("Session ID"),
       output: z.string().describe("Output file path (without extension)"),
@@ -226,15 +228,27 @@ const createServer = () => {
       const renderedScreen = renderScreen(session.terminal, session.cols, session.rows);
 
       await fs.mkdir(path.dirname(output), { recursive: true });
+
+      // Save text files
       await fs.writeFile(output + ".ansi", rawContent);
       await fs.writeFile(output + ".txt", renderedScreen);
 
-      console.log(`[shellwright] Screenshot saved: ${output}.txt and ${output}.ansi`);
+      // Generate SVG with colors from xterm buffer
+      const svg = bufferToSvg(session.terminal, session.cols, session.rows);
+      await fs.writeFile(output + ".svg", svg);
+
+      // Generate PNG from SVG
+      const resvg = new Resvg(svg);
+      const png = resvg.render().asPng();
+      await fs.writeFile(output + ".png", png);
+
+      console.log(`[shellwright] Screenshot saved: ${output}.{txt,svg,png}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({
           txt: output + ".txt",
-          ansi: output + ".ansi",
+          svg: output + ".svg",
+          png: output + ".png",
           preview: renderedScreen.slice(0, 2000)
         }) }],
       };

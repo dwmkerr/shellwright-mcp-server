@@ -10,6 +10,8 @@ import * as fs from "fs";
 import * as path from "path";
 import xterm from "@xterm/headless";
 const { Terminal } = xterm;
+import ansiToSvg from "ansi-to-svg";
+import { Resvg } from "@resvg/resvg-js";
 
 const COLS = 120;
 const ROWS = 40;
@@ -22,7 +24,10 @@ const terminal = new Terminal({
   allowProposedApi: true,
 });
 
-// Screenshot function - saves current screen to .txt file
+// Raw ANSI buffer for colored screenshots
+const rawBuffer: string[] = [];
+
+// Screenshot function - saves current screen to .txt, .svg, .png files
 function screenshot(name: string): void {
   const buffer = terminal.buffer.active;
   const lines: string[] = [];
@@ -34,10 +39,24 @@ function screenshot(name: string): void {
       lines.push("".padEnd(COLS));
     }
   }
-  const content = lines.join("\n");
-  const filepath = path.join(OUTPUT_DIR, `${name}.txt`);
-  fs.writeFileSync(filepath, content);
-  console.log(`Screenshot saved: ${filepath}`);
+  const textContent = lines.join("\n");
+  const basePath = path.join(OUTPUT_DIR, name);
+
+  // Save text file
+  fs.writeFileSync(`${basePath}.txt`, textContent);
+  console.log(`Screenshot saved: ${basePath}.txt`);
+
+  // Generate SVG from raw ANSI
+  const rawContent = rawBuffer.join("");
+  const svg = ansiToSvg(rawContent);
+  fs.writeFileSync(`${basePath}.svg`, svg);
+  console.log(`Screenshot saved: ${basePath}.svg`);
+
+  // Generate PNG from SVG
+  const resvg = new Resvg(svg);
+  const png = resvg.render().asPng();
+  fs.writeFileSync(`${basePath}.png`, png);
+  console.log(`Screenshot saved: ${basePath}.png`);
 }
 
 // Ensure output directory exists
@@ -56,9 +75,10 @@ const shell = pty.spawn(k9sPath, [], {
   env: { ...process.env, TERM: "xterm-256color" },
 });
 
-// Feed PTY data to terminal emulator
+// Feed PTY data to terminal emulator and raw buffer
 shell.onData((data) => {
   terminal.write(data);
+  rawBuffer.push(data);
 });
 
 // Sequence of actions

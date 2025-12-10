@@ -17,8 +17,10 @@ Usage:
 """
 
 import asyncio
+import glob
 import json
 import os
+import shutil
 
 from dotenv import load_dotenv
 from mcp import ClientSession, types
@@ -127,6 +129,16 @@ Take a screenshot after each significant step.""",
                 else:
                     print(f"Assistant: {message.content}")
                     break
+
+    # Copy screenshots to local ./screenshots directory
+    local_screenshots = "./screenshots"
+    os.makedirs(local_screenshots, exist_ok=True)
+    png_files = glob.glob(f"{SCREENSHOT_DIR}/*.png")
+    if png_files:
+        print(f"\nCopying {len(png_files)} screenshots to {local_screenshots}/")
+        for f in png_files:
+            shutil.copy(f, local_screenshots)
+            print(f"  {os.path.basename(f)}")
 
 
 def main():

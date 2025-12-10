@@ -40,6 +40,9 @@ python k9s-demo.py
 ## TODO
 
 - Set screen size tool
+- Note that only local commands are available
+- screenshot
+- themes
 
 ## License
 

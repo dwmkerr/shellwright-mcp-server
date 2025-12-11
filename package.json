@@ -1,0 +1,65 @@
+{
+  "name": "@dwmkerr/shellwright-mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Playwright for the shell - MCP server for terminal recording and automation",
+  "main": "dist/index.js",
+  "bin": {
+    "shellwright": "./dist/index.js"
+  },
+  "scripts": {
+    "prepare": "npm run build",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "jest",
+    "test:emulator": "tsx tests/run-tests.ts",
+    "test:k9s": "tsx tests/04-k9s/run.ts",
+    "lint": "eslint src/**/*.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dwmkerr/shellwright-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dwmkerr/shellwright-mcp-server/issues"
+  },
+  "homepage": "https://github.com/dwmkerr/shellwright-mcp-server#readme",
+  "keywords": [
+    "mcp",
+    "terminal",
+    "recording",
+    "asciinema",
+    "shell",
+    "automation",
+    "playwright"
+  ],
+  "author": "Dave Kerr",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.24.3",
+    "@resvg/resvg-js": "^2.6.2",
+    "@xterm/headless": "^5.5.0",
+    "express": "^5.2.1",
+    "node-pty": "^1.0.0",
+    "strip-ansi": "^7.1.2",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.11.19",
+    "@typescript-eslint/eslint-plugin": "^8.48.0",
+    "@typescript-eslint/parser": "^8.48.0",
+    "eslint": "^9.39.1",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.48.0"
+  }
+}

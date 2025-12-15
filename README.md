@@ -2,14 +2,21 @@
 
 Playwright for the shell. An MCP server that lets AI agents record, capture, and automate terminal sessions.
 
-> **Work in Progress** - This project is under active development.
-
-## Use Cases
-
 - Create terminal recordings for documentation
-- Capture terminal screenshots for PRs
-- Automate TUI applications (k9s, htop, vim)
+- Capture terminal screenshots as PNG, SVG or plain ANSII
+- Automate TUI applications like `k9s`, `htop` or `vim`
 - Generate step-by-step terminal demos
+- Attach lovely terminal screenshots to PRs or whatever you want
+
+As the scary 'AI is taking over the world' demo, have your AI agent show you how to close `vim`:
+
+> Open Vim. Write some text or show me something cool. Show me how to close Vim. Make sure you create a video recording and take some screenshots.
+
+See the output here:
+
+TODO
+
+Check the [Examples](#Examples) for more.
 
 ## Getting Started
 

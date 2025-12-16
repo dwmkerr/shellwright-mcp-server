@@ -13,9 +13,11 @@ import xterm from "@xterm/headless";
 const { Terminal } = xterm;
 import { bufferToSvg } from "./lib/buffer-to-svg.js";
 import { Resvg } from "@resvg/resvg-js";
+import { renderGif } from "./lib/render-gif.js";
 
 // Port 7498 spells SWRT (Shellwright) on a dialpad
 const PORT = parseInt(process.env.PORT || "7498", 10);
+const TEMP_DIR = process.env.SHELLWRIGHT_TEMP_DIR || "/tmp/shellwright";
 const BACKGROUND = process.argv.includes("--background") || process.argv.includes("-b");
 
 // Build a clean env for PTY sessions - removes vars that could cause terminal interference
@@ -51,6 +53,17 @@ function renderScreen(terminal: InstanceType<typeof Terminal>, cols: number, row
   return lines.join("\n");
 }
 
+// Interpret escape sequences in input strings (e.g., \r → carriage return)
+function interpretEscapes(str: string): string {
+  return str
+    .replace(/\\r/g, "\r")
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\x1b/g, "\x1b")
+    .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
 // Basic ANSI stripping (incomplete - see 04-findings.md for why this is insufficient)
 function stripAnsi(str: string): string {
   return str
@@ -62,6 +75,14 @@ function stripAnsi(str: string): string {
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");  // Control chars
 }
 
+interface RecordingState {
+  startTime: number;
+  framesDir: string;
+  frameCount: number;
+  interval: ReturnType<typeof setInterval>;
+  fps: number;
+}
+
 interface Session {
   id: string;
   pty: pty.IPty;
@@ -69,12 +90,19 @@ interface Session {
   rows: number;
   buffer: string[];
   terminal: InstanceType<typeof Terminal>;
+  recording?: RecordingState;
 }
 
 const sessions = new Map<string, Session>();
 const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
 
-const createServer = () => {
+// Build temp path: /tmp/shellwright/mcp-session-{mcpId}/{shellId}
+function getSessionDir(mcpSessionId: string | undefined, shellSessionId: string): string {
+  const mcpPart = mcpSessionId ? `mcp-session-${mcpSessionId}` : "mcp-session-unknown";
+  return path.join(TEMP_DIR, mcpPart, shellSessionId);
+}
+
+const createServer = (transport: StreamableHTTPServerTransport) => {
   const server = new McpServer({
     name: "shellwright",
     version: "0.1.0",
@@ -90,7 +118,7 @@ const createServer = () => {
       rows: z.number().optional().describe("Terminal rows (default: 40)"),
     },
     async ({ command, args, cols, rows }) => {
-      const id = randomUUID();
+      const id = `shell-session-${randomUUID().slice(0, 6)}`;
       const termCols = cols || 120;
       const termRows = rows || 40;
 
@@ -129,7 +157,7 @@ const createServer = () => {
       console.log(`[shellwright] Started session ${id}: ${command}`);
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ session_id: id }) }],
+        content: [{ type: "text" as const, text: JSON.stringify({ shell_session_id: id }) }],
       };
     }
   );
@@ -148,7 +176,8 @@ const createServer = () => {
         throw new Error(`Session not found: ${session_id}`);
       }
 
-      session.pty.write(input);
+      const interpreted = interpretEscapes(input);
+      session.pty.write(interpreted);
       console.log(`[shellwright] Sent to ${session_id}: ${JSON.stringify(input)}`);
 
       await new Promise((resolve) => setTimeout(resolve, delay_ms || 100));
@@ -214,43 +243,38 @@ const createServer = () => {
 
   server.tool(
     "shell_screenshot",
-    "Capture terminal state to files (txt, svg, png with colors)",
+    "Capture terminal screenshot and return as base64 PNG",
     {
       session_id: z.string().describe("Session ID"),
-      output: z.string().describe("Output file path (without extension)"),
+      name: z.string().optional().describe("Screenshot name (default: screenshot_{timestamp})"),
     },
-    async ({ session_id, output }) => {
+    async ({ session_id, name }) => {
       const session = sessions.get(session_id);
       if (!session) {
         throw new Error(`Session not found: ${session_id}`);
       }
 
-      const rawContent = session.buffer.join("");
-      const renderedScreen = renderScreen(session.terminal, session.cols, session.rows);
+      const filename = `${name || `screenshot_${Date.now()}`}.png`;
+      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const screenshotDir = path.join(sessionDir, "screenshots");
+      const filePath = path.join(screenshotDir, filename);
 
-      await fs.mkdir(path.dirname(output), { recursive: true });
+      await fs.mkdir(screenshotDir, { recursive: true });
 
-      // Save text files
-      await fs.writeFile(output + ".ansi", rawContent);
-      await fs.writeFile(output + ".txt", renderedScreen);
-
-      // Generate SVG with colors from xterm buffer
+      // Generate PNG from xterm buffer
       const svg = bufferToSvg(session.terminal, session.cols, session.rows);
-      await fs.writeFile(output + ".svg", svg);
-
-      // Generate PNG from SVG
       const resvg = new Resvg(svg);
       const png = resvg.render().asPng();
-      await fs.writeFile(output + ".png", png);
 
-      console.log(`[shellwright] Screenshot saved: ${output}.{txt,svg,png}`);
+      // Save locally for diagnostics
+      await fs.writeFile(filePath, png);
+      console.log(`[shellwright] Screenshot saved: ${filePath}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({
-          txt: output + ".txt",
-          svg: output + ".svg",
-          png: output + ".png",
-          preview: renderedScreen.slice(0, 2000)
+          filename,
+          mimetype: "image/png",
+          base64: png.toString("base64"),
         }) }],
       };
     }
@@ -268,12 +292,119 @@ const createServer = () => {
         throw new Error(`Session not found: ${session_id}`);
       }
 
+      // Stop recording if active
+      if (session.recording) {
+        clearInterval(session.recording.interval);
+      }
+
       session.pty.kill();
       sessions.delete(session_id);
       console.log(`[shellwright] Stopped session ${session_id}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ success: true }) }],
+      };
+    }
+  );
+
+  server.tool(
+    "shell_record_start",
+    "Start recording a terminal session (captures frames for GIF/video export)",
+    {
+      session_id: z.string().describe("Session ID"),
+      fps: z.number().optional().describe("Frames per second (default: 10, max: 30)"),
+    },
+    async ({ session_id, fps }) => {
+      const session = sessions.get(session_id);
+      if (!session) {
+        throw new Error(`Session not found: ${session_id}`);
+      }
+
+      if (session.recording) {
+        throw new Error(`Session ${session_id} is already recording`);
+      }
+
+      const recordingFps = Math.min(fps || 10, 30);
+      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const framesDir = path.join(sessionDir, "frames");
+      await fs.mkdir(framesDir, { recursive: true });
+
+      session.recording = {
+        startTime: Date.now(),
+        framesDir,
+        frameCount: 0,
+        fps: recordingFps,
+        interval: setInterval(async () => {
+          if (!session.recording) return;
+
+          const frameNum = session.recording.frameCount++;
+          const svg = bufferToSvg(session.terminal, session.cols, session.rows);
+          const png = new Resvg(svg).render().asPng();
+          const framePath = path.join(framesDir, `frame${String(frameNum).padStart(6, "0")}.png`);
+          await fs.writeFile(framePath, png);
+        }, 1000 / recordingFps),
+      };
+
+      console.log(`[shellwright] Recording started: ${session_id} @ ${recordingFps} FPS → ${framesDir}`);
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({
+          recording: true,
+          fps: recordingFps,
+          frames_dir: framesDir,
+        }) }],
+      };
+    }
+  );
+
+  server.tool(
+    "shell_record_stop",
+    "Stop recording and return GIF as base64 (video export coming soon)",
+    {
+      session_id: z.string().describe("Session ID"),
+      name: z.string().optional().describe("Recording name (default: recording_{timestamp})"),
+    },
+    async ({ session_id, name }) => {
+      const session = sessions.get(session_id);
+      if (!session) {
+        throw new Error(`Session not found: ${session_id}`);
+      }
+
+      if (!session.recording) {
+        throw new Error(`Session ${session_id} is not recording`);
+      }
+
+      clearInterval(session.recording.interval);
+      const { framesDir, frameCount, fps, startTime } = session.recording;
+      const durationMs = Date.now() - startTime;
+
+      const filename = `${name || `recording_${Date.now()}`}.gif`;
+      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const recordingsDir = path.join(sessionDir, "recordings");
+      const filePath = path.join(recordingsDir, filename);
+
+      await fs.mkdir(recordingsDir, { recursive: true });
+
+      // Render GIF
+      await renderGif(framesDir, filePath, { fps });
+
+      // Read GIF data
+      const gifData = await fs.readFile(filePath);
+
+      // Cleanup frames (keep the GIF for diagnostics)
+      await fs.rm(framesDir, { recursive: true, force: true });
+      session.recording = undefined;
+
+      console.log(`[shellwright] Recording saved: ${filePath} (${frameCount} frames, ${durationMs}ms)`);
+
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({
+          filename,
+          mimetype: "image/gif",
+          base64: gifData.toString("base64"),
+          frame_count: frameCount,
+          duration_ms: durationMs,
+        }) }],
       };
     }
   );
@@ -311,7 +442,7 @@ app.post("/mcp", async (req: Request, res: Response) => {
         }
       };
 
-      const server = createServer();
+      const server = createServer(transport);
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
       return;
@@ -365,6 +496,7 @@ app.delete("/mcp", async (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`[shellwright] MCP server running at http://localhost:${PORT}/mcp`);
+  console.log(`[shellwright] Temp directory: ${TEMP_DIR}`);
 });
 
 process.on("SIGINT", async () => {

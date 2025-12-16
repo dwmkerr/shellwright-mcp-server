@@ -1,7 +1,10 @@
 <p align="center">
   <h2 align="center"><code>🖥️ shellwright</code></h2>
   <h3 align="center">Playwright for the shell. AI-driven terminal automation, screenshots and video recording.</h3>
-  <h5 align="center">Finally, your AI agents can <a href="https://stackoverflow.com/questions/11828270/how-do-i-exit-vim" target="_blank">close Vim</a>.</h5>
+  <h4 align="center">Finally. Your AI agents can <a href="https://stackoverflow.com/questions/11828270/how-do-i-exit-vim" target="_blank">close Vim</a></h4>
+  <p align="center"><em>
+    User: Open Vim. Tell me how to close it. Close it. Record this as a video.
+  </em></p>
   <p align="center">
     <img src="./docs/videos/closing-vim-example.gif" alt="Shellwright Demo" style="max-width: 100%;">
   </p>
@@ -23,10 +26,16 @@ Configure your LLM, IDE or whatever to use the Shellwright MCP server:
 
 ```json
 {
-TODO what tis the npx thing we use to configure an MCP sever?
+  "mcpServers": {
+    "shellwright": {
+      "command": "npx",
+      "args": ["-y", "shellwright-mcp-server"]
+    }
+  }
 }
+```
 
-**Running Locally*
+**Running Locally**
 
 Run the MCP server:
 
@@ -103,9 +112,9 @@ Have fun with some prompts:
 
 ## TODO
 
+- Themes support
 - Video export (MP4/MOV) via ffmpeg
 - Set screen size tool
-- Themes support
 - Better logging
 
 ## License

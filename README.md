@@ -1,24 +1,25 @@
-# Shellwright MCP Server
+<p align="center">
+  <h2 align="center"><code>🖥️ shellwright</code></h2>
+  <h3 align="center">Playwright for the shell. AI-driven terminal automation, screenshots and video recording.</h3>
+  <h5 align="center">Finally, your AI agents can <a href="TODO" target="_blank">close Vim</a>.</h5>
+  <p align="center">
+    <img src="./docs/videos/closing-vim-example.gif" alt="Shellwright Demo" style="max-width: 100%;">
+  </p>
+  <p align="center">
+    <a href="#quickstart">Quickstart</a> |
+    <a href="#examples">Examples</a> |
+    <a href="#tools">Tools</a> |
+    <a href="#configuration">Configuration</a>
+  </p>
+  <p align="center">
+    <a href="https://github.com/dwmkerr/shellwright-mcp-server/actions/workflows/cicd.yaml"><img src="https://github.com/dwmkerr/shellwright-mcp-server/actions/workflows/cicd.yaml/badge.svg" alt="cicd"></a>
+    <a href="https://www.npmjs.com/package/shellwright-mcp-server"><img src="https://img.shields.io/npm/v/shellwright-mcp-server" alt="npm version"></a>
+  </p>
+</p>
 
-Playwright for the shell. An MCP server that lets AI agents record, capture, and automate terminal sessions.
+## Quickstart
 
-- Create terminal recordings for documentation
-- Capture terminal screenshots as PNG, SVG or plain ANSII
-- Automate TUI applications like `k9s`, `htop` or `vim`
-- Generate step-by-step terminal demos
-- Attach lovely terminal screenshots to PRs or whatever you want
-
-As the scary 'AI is taking over the world' demo, have your AI agent show you how to close `vim`:
-
-> Open Vim. Write some text or show me something cool. Show me how to close Vim. Make sure you create a video recording and take some screenshots.
-
-See the output here:
-
-TODO
-
-Check the [Examples](#Examples) for more.
-
-## Getting Started
+Run the MCP server:
 
 ```bash
 npm install
@@ -27,61 +28,74 @@ npm run dev
 
 The server runs at `http://localhost:7498/mcp`.
 
-### Test with MCP Inspector
+**Testing with the MCP Inspector**
+
+Open the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) in another terminal and connect to `http://localhost:7498/mcp` to list and test tools:
 
 ```bash
+# Open MCP inspector in another terminal.
 npx @modelcontextprotocol/inspector
+
+# Now connect to:
+# http://localhost:7498/mcp
 ```
 
-Connect to `http://localhost:7498/mcp` and explore the available tools.
+**Testing with an Agent**
 
-### Run MCP Examples
-
-These examples directly call the Shellwright MCP server tools to run commands and generate screenshots. This shows how the tools work and how they can be used to create output for specific examples.
+Run the [`demo.py`](./demo/demo.py) program to chat to an agent that has the Shellwright tool:
 
 ```bash
-# In the first terminal, run the mcp server.
-npm run dev
+# Optionally setup your .env
+# cp ./demo/.env.sample .env && vi .env
 
-# In a second terminal, run a sample.
-cd examples
-cp .env.sample .env
-# Edit .env with your OpenAI API key
+# Install requirements and run the agent.
+pip install -r ./demo/requirements.txt
+python ./demo/demo.py
 
-# Run a specific example.
-python ./k9s/run.py
+# Output:
+# User (enter message): Show me what the htop tool looks like showing me my resources.
 ```
 
-### Agent Demo
+You will see logs from the MCP server and the demo agent:
 
-Run the demo agent - it has the MCP tools available and will take screenshots based on the input you provide. This does require OpenAI credentials to be set in `./examples/.env`:
+![Screenshot of the MCP server and demo agent](./docs/images/npm-dev-and-demo-screenshot.png)
 
-```bash
-# In the first terminal, run the mcp server.
-npm run dev
+Screenshots and videos by default will be written to `./output`.
 
-# In a second terminal, run the demo.
-cd examples
-cp .env.sample .env
-# Edit .env with your OpenAI API key
+## Examples
 
-# Run the demo. The user will be asked to provide a message.
-python ./demo.py
-# eg:
-# Enter Message: run 'top' and give me a screenshot tell me where the file is
+Finally, your agents can be smart enough to [close `vim`](https://stackoverflow.com/questions/11828270/how-do-i-exit-vim):
 
-# ...or provide a message directly.
-python ./demo.py -- "Run a shell command to show me the names \
-of the folders in this directory and take a screenshot and give me its path"
-```
+> Open Vim. Write a message saying how to close Vim. Close Vim. Give me a screenshot of each step and a GIF recording.
 
+![Screenshot of the MCP Server and Demo Application Running](./docs/images/npm-dev-and-demo-screenshot.png)
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `shell_start` | Start a new PTY session |
+| `shell_send` | Send input to a session |
+| `shell_read` | Read the terminal buffer |
+| `shell_snapshot` | Get terminal screen as text grid |
+| `shell_screenshot` | Save terminal state to txt, svg, png |
+| `shell_record_start` | Start recording for GIF export |
+| `shell_record_stop` | Stop recording and export GIF |
+| `shell_stop` | Stop a PTY session |
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `7498` | Server port ("SWRT" on a phone keypad) |
+| `SHELLWRIGHT_TEMP_DIR` | `/tmp/shellwright` | Directory for recording frames |
 
 ## TODO
 
+- Video export (MP4/MOV) via ffmpeg
 - Set screen size tool
-- Note that only local commands are available
-- screenshot
-- themes
+- Themes support
+- Better logging
 
 ## License
 

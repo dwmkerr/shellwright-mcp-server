@@ -3,6 +3,7 @@
 import express, { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -41,26 +42,36 @@ program
   .option("--font-family <name>", "Font family for screenshots/recordings", process.env.FONT_FAMILY || DEFAULT_FONT_FAMILY)
   .option("--cols <number>", "Default terminal columns", String(DEFAULT_COLS))
   .option("--rows <number>", "Default terminal rows", String(DEFAULT_ROWS))
-  .option("-b, --background", "Run in background mode")
+  .option("--http", "Use HTTP transport instead of stdio (default: stdio)")
   .parse();
 
 const opts = program.opts();
 
 const PORT = parseInt(opts.port, 10);
 const TEMP_DIR = opts.tempDir;
-const BACKGROUND = opts.background;
+const USE_HTTP = opts.http;
 const FONT_SIZE = parseInt(opts.fontSize, 10);
 const FONT_FAMILY = opts.fontFamily;
 const COLS = parseInt(opts.cols, 10);
 const ROWS = parseInt(opts.rows, 10);
 
+// Log to stderr in stdio mode (stdout is reserved for MCP protocol)
+function log(message: string): void {
+  if (USE_HTTP) {
+    console.log(message);
+  } else {
+    console.error(message);
+  }
+}
+
 let currentTheme: Theme;
 try {
   currentTheme = getTheme(opts.theme);
-  console.log(`[shellwright] Theme: ${currentTheme.name}`);
-  console.log(`[shellwright] Font: ${FONT_FAMILY} @ ${FONT_SIZE}px`);
-  console.log(`[shellwright] Terminal: ${COLS}x${ROWS}`);
-  console.log(`[shellwright] Temp directory: ${TEMP_DIR}`);
+  log(`[shellwright] Transport: ${USE_HTTP ? "HTTP" : "stdio"}`);
+  log(`[shellwright] Theme: ${currentTheme.name}`);
+  log(`[shellwright] Font: ${FONT_FAMILY} @ ${FONT_SIZE}px`);
+  log(`[shellwright] Terminal: ${COLS}x${ROWS}`);
+  log(`[shellwright] Temp directory: ${TEMP_DIR}`);
 } catch (err) {
   console.error(`[shellwright] ${(err as Error).message}`);
   console.error(`[shellwright] Available themes: ${Object.keys(themes).join(", ")}`);
@@ -135,7 +146,40 @@ function getSessionDir(mcpSessionId: string | undefined, shellSessionId: string)
   return path.join(TEMP_DIR, mcpPart, shellSessionId);
 }
 
-const createServer = (transport: StreamableHTTPServerTransport) => {
+// Build download URL for a file
+function getDownloadUrl(mcpSessionId: string | undefined, shellSessionId: string, type: "screenshots" | "recordings", filename: string): string {
+  const mcpPart = mcpSessionId ? `mcp-session-${mcpSessionId}` : "mcp-session-unknown";
+  return `http://localhost:${PORT}/files/${mcpPart}/${shellSessionId}/${type}/${filename}`;
+}
+
+// Create Express app for file serving (used by both HTTP and stdio modes)
+function createFileServer(): express.Express {
+  const app = express();
+
+  // Serve files from temp directory
+  app.get("/files/*splat", async (req: Request, res: Response) => {
+    const relativePath = (req.params as unknown as { splat: string[] }).splat.join("/");
+    const filePath = path.join(TEMP_DIR, relativePath);
+
+    // Security: ensure path is within TEMP_DIR
+    const resolved = path.resolve(filePath);
+    if (!resolved.startsWith(path.resolve(TEMP_DIR))) {
+      res.status(403).send("Forbidden");
+      return;
+    }
+
+    try {
+      await fs.access(filePath);
+      res.sendFile(resolved);
+    } catch {
+      res.status(404).send("Not found");
+    }
+  });
+
+  return app;
+}
+
+const createServer = (getMcpSessionId: () => string | undefined) => {
   const server = new McpServer({
     name: "shellwright",
     version: "0.1.0",
@@ -187,7 +231,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
       });
 
       sessions.set(id, session);
-      console.log(`[shellwright] Started session ${id}: ${command}`);
+      log(`[shellwright] Started session ${id}: ${command}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ shell_session_id: id }) }],
@@ -211,7 +255,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
 
       const interpreted = interpretEscapes(input);
       session.pty.write(interpreted);
-      console.log(`[shellwright] Sent to ${session_id}: ${JSON.stringify(input)}`);
+      log(`[shellwright] Sent to ${session_id}: ${JSON.stringify(input)}`);
 
       await new Promise((resolve) => setTimeout(resolve, delay_ms || 100));
 
@@ -245,7 +289,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
         content = "...(truncated)...\n" + content.slice(-maxSize);
       }
 
-      console.log(`[shellwright] Read ${content.length} chars from ${session_id}`);
+      log(`[shellwright] Read ${content.length} chars from ${session_id}`);
 
       return {
         content: [{ type: "text" as const, text: content }],
@@ -255,7 +299,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
 
   server.tool(
     "shell_screenshot",
-    "Capture terminal screenshot as PNG, ANSI, and plain text",
+    "Capture terminal screenshot as PNG. Returns a download_url - use curl to save the file locally (e.g., curl -o screenshot.png <url>)",
     {
       session_id: z.string().describe("Session ID"),
       name: z.string().optional().describe("Screenshot name (default: screenshot_{timestamp})"),
@@ -267,7 +311,8 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
       }
 
       const baseName = name || `screenshot_${Date.now()}`;
-      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const filename = `${baseName}.png`;
+      const sessionDir = getSessionDir(getMcpSessionId(), session_id);
       const screenshotDir = path.join(sessionDir, "screenshots");
 
       await fs.mkdir(screenshotDir, { recursive: true });
@@ -291,13 +336,15 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
         fs.writeFile(textPath, text),
       ]);
 
-      console.log(`[shellwright] Screenshot saved: ${screenshotDir}/${baseName}.{png,svg,ansi,txt}`);
+      log(`[shellwright] Screenshot saved: ${screenshotDir}/${baseName}.{png,svg,ansi,txt}`);
+
+      const downloadUrl = getDownloadUrl(getMcpSessionId(), session_id, "screenshots", filename);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({
-          filename: `${baseName}.png`,
-          mimetype: "image/png",
-          base64: png.toString("base64"),
+          filename,
+          download_url: downloadUrl,
+          hint: "Use curl -o <filename> <download_url> to save the file",
         }) }],
       };
     }
@@ -322,7 +369,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
 
       session.pty.kill();
       sessions.delete(session_id);
-      console.log(`[shellwright] Stopped session ${session_id}`);
+      log(`[shellwright] Stopped session ${session_id}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({ success: true }) }],
@@ -348,7 +395,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
       }
 
       const recordingFps = Math.min(fps || 10, 30);
-      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const sessionDir = getSessionDir(getMcpSessionId(), session_id);
       const framesDir = path.join(sessionDir, "frames");
       await fs.mkdir(framesDir, { recursive: true });
 
@@ -368,7 +415,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
         }, 1000 / recordingFps),
       };
 
-      console.log(`[shellwright] Recording started: ${session_id} @ ${recordingFps} FPS → ${framesDir}`);
+      log(`[shellwright] Recording started: ${session_id} @ ${recordingFps} FPS → ${framesDir}`);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({
@@ -382,7 +429,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
 
   server.tool(
     "shell_record_stop",
-    "Stop recording and return GIF as base64 (video export coming soon)",
+    "Stop recording and save GIF. Returns a download_url - use curl to save the file locally (e.g., curl -o recording.gif <url>)",
     {
       session_id: z.string().describe("Session ID"),
       name: z.string().optional().describe("Recording name (default: recording_{timestamp})"),
@@ -402,7 +449,7 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
       const durationMs = Date.now() - startTime;
 
       const filename = `${name || `recording_${Date.now()}`}.gif`;
-      const sessionDir = getSessionDir(transport.sessionId, session_id);
+      const sessionDir = getSessionDir(getMcpSessionId(), session_id);
       const recordingsDir = path.join(sessionDir, "recordings");
       const filePath = path.join(recordingsDir, filename);
 
@@ -411,22 +458,21 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
       // Render GIF
       await renderGif(framesDir, filePath, { fps });
 
-      // Read GIF data
-      const gifData = await fs.readFile(filePath);
-
       // Cleanup frames (keep the GIF for diagnostics)
       await fs.rm(framesDir, { recursive: true, force: true });
       session.recording = undefined;
 
-      console.log(`[shellwright] Recording saved: ${filePath} (${frameCount} frames, ${durationMs}ms)`);
+      log(`[shellwright] Recording saved: ${filePath} (${frameCount} frames, ${durationMs}ms)`);
+
+      const downloadUrl = getDownloadUrl(getMcpSessionId(), session_id, "recordings", filename);
 
       return {
         content: [{ type: "text" as const, text: JSON.stringify({
           filename,
-          mimetype: "image/gif",
-          base64: gifData.toString("base64"),
+          download_url: downloadUrl,
           frame_count: frameCount,
           duration_ms: durationMs,
+          hint: "Use curl -o <filename> <download_url> to save the file",
         }) }],
       };
     }
@@ -435,96 +481,127 @@ const createServer = (transport: StreamableHTTPServerTransport) => {
   return server;
 };
 
-const app = express();
-app.use(express.json());
+// Start the appropriate transport
+if (USE_HTTP) {
+  // HTTP transport mode - MCP + file serving on same port
+  const app = createFileServer();
+  app.use(express.json());
 
-app.post("/mcp", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  console.log(`[shellwright] POST /mcp ${sessionId ? `session=${sessionId}` : "new"}`);
+  app.post("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    log(`[shellwright] POST /mcp ${sessionId ? `session=${sessionId}` : "new"}`);
 
-  try {
-    let transport: StreamableHTTPServerTransport;
+    try {
+      let transport: StreamableHTTPServerTransport;
 
-    if (sessionId && transports[sessionId]) {
-      transport = transports[sessionId];
-    } else if (!sessionId && isInitializeRequest(req.body)) {
-      console.log(`[shellwright] New session initializing`);
-      transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        onsessioninitialized: (sid) => {
-          console.log(`[shellwright] Session initialized: ${sid}`);
-          transports[sid] = transport;
-        },
-      });
+      if (sessionId && transports[sessionId]) {
+        transport = transports[sessionId];
+      } else if (!sessionId && isInitializeRequest(req.body)) {
+        log(`[shellwright] New session initializing`);
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          onsessioninitialized: (sid) => {
+            log(`[shellwright] Session initialized: ${sid}`);
+            transports[sid] = transport;
+          },
+        });
 
-      transport.onclose = () => {
-        const sid = transport.sessionId;
-        if (sid && transports[sid]) {
-          console.log(`[shellwright] Session closed: ${sid}`);
-          delete transports[sid];
-        }
-      };
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid && transports[sid]) {
+            log(`[shellwright] Session closed: ${sid}`);
+            delete transports[sid];
+          }
+        };
 
-      const server = createServer(transport);
-      await server.connect(transport);
+        const server = createServer(() => transport.sessionId);
+        await server.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+        return;
+      } else {
+        res.status(400).json({
+          jsonrpc: "2.0",
+          error: { code: -32000, message: "Bad Request: No valid session ID" },
+          id: null,
+        });
+        return;
+      }
+
       await transport.handleRequest(req, res, req.body);
-      return;
-    } else {
-      res.status(400).json({
-        jsonrpc: "2.0",
-        error: { code: -32000, message: "Bad Request: No valid session ID" },
-        id: null,
-      });
+    } catch (error) {
+      console.error("[shellwright] Error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: "2.0",
+          error: { code: -32603, message: "Internal server error" },
+          id: null,
+        });
+      }
+    }
+  });
+
+  app.get("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    log(`[shellwright] GET /mcp session=${sessionId}`);
+
+    if (!sessionId || !transports[sessionId]) {
+      res.status(400).send("Invalid or missing session ID");
       return;
     }
 
-    await transport.handleRequest(req, res, req.body);
-  } catch (error) {
-    console.error("[shellwright] Error:", error);
-    if (!res.headersSent) {
-      res.status(500).json({
-        jsonrpc: "2.0",
-        error: { code: -32603, message: "Internal server error" },
-        id: null,
-      });
+    const transport = transports[sessionId];
+    await transport.handleRequest(req, res);
+  });
+
+  app.delete("/mcp", async (req: Request, res: Response) => {
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    log(`[shellwright] DELETE /mcp session=${sessionId}`);
+
+    if (!sessionId || !transports[sessionId]) {
+      res.status(400).send("Invalid or missing session ID");
+      return;
     }
-  }
-});
 
-app.get("/mcp", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  console.log(`[shellwright] GET /mcp session=${sessionId}`);
+    const transport = transports[sessionId];
+    await transport.handleRequest(req, res);
+  });
 
-  if (!sessionId || !transports[sessionId]) {
-    res.status(400).send("Invalid or missing session ID");
-    return;
-  }
+  app.listen(PORT, () => {
+    log(`[shellwright] MCP server running at http://localhost:${PORT}/mcp`);
+    log(`[shellwright] File server running at http://localhost:${PORT}/files`);
+  });
 
-  const transport = transports[sessionId];
-  await transport.handleRequest(req, res);
-});
+  process.on("SIGINT", async () => {
+    log("[shellwright] Shutting down...");
+    for (const sessionId in transports) {
+      await transports[sessionId].close();
+    }
+    process.exit(0);
+  });
+} else {
+  // Stdio transport mode (default) - MCP over stdio, file server on HTTP
+  const stdioSessionId = randomUUID();
+  const transport = new StdioServerTransport();
+  const server = createServer(() => stdioSessionId);
 
-app.delete("/mcp", async (req: Request, res: Response) => {
-  const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  console.log(`[shellwright] DELETE /mcp session=${sessionId}`);
+  // Start HTTP file server (needed for download URLs)
+  const fileServer = createFileServer();
+  fileServer.listen(PORT, () => {
+    log(`[shellwright] File server running at http://localhost:${PORT}/files`);
+  });
 
-  if (!sessionId || !transports[sessionId]) {
-    res.status(400).send("Invalid or missing session ID");
-    return;
-  }
+  log(`[shellwright] Session: ${stdioSessionId}`);
 
-  const transport = transports[sessionId];
-  await transport.handleRequest(req, res);
-});
+  server.connect(transport).then(() => {
+    log(`[shellwright] MCP server ready (stdio)`);
+  }).catch((error) => {
+    console.error("[shellwright] Failed to start:", error);
+    process.exit(1);
+  });
 
-app.listen(PORT, () => {
-  console.log(`[shellwright] MCP server running at http://localhost:${PORT}/mcp`);
-});
-
-process.on("SIGINT", async () => {
-  console.log("[shellwright] Shutting down...");
-  for (const sessionId in transports) {
-    await transports[sessionId].close();
-  }
-  process.exit(0);
-});
+  process.on("SIGINT", async () => {
+    log("[shellwright] Shutting down...");
+    await transport.close();
+    process.exit(0);
+  });
+}

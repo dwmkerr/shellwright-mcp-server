@@ -11,10 +11,10 @@ Requires: pip install mcp openai python-dotenv
 """
 
 import asyncio
-import base64
 import json
 import os
 import sys
+import urllib.request
 
 from dotenv import load_dotenv
 
@@ -105,25 +105,14 @@ def format_args(args: dict) -> str:
     return ", ".join(parts) if parts else ""
 
 
-def format_response(text: str) -> str:
-    """Format response, cropping base64 data."""
+def download_file(url: str, output_dir: str, filename: str) -> str | None:
+    """Download file from URL, return path if saved."""
     try:
-        data = json.loads(text)
-        if isinstance(data, dict) and "base64" in data:
-            data["base64"] = data["base64"][:20] + "...[cropped]"
-        return crop_string(json.dumps(data), 100)
-    except (json.JSONDecodeError, TypeError):
-        return crop_string(text, 100)
-
-
-def save_base64_file(data: dict, output_dir: str) -> str | None:
-    """Save base64 data to file, return path if saved."""
-    if "base64" in data and "filename" in data:
-        filepath = os.path.join(output_dir, data["filename"])
-        with open(filepath, "wb") as f:
-            f.write(base64.b64decode(data["base64"]))
+        filepath = os.path.join(output_dir, filename)
+        urllib.request.urlretrieve(url, filepath)
         return filepath
-    return None
+    except Exception:
+        return None
 
 
 async def call_tool(session, name: str, args: dict):
@@ -201,27 +190,27 @@ Use descriptive names for screenshots and recordings.""",
                         result_text = await call_tool(session, name, args)
 
                         # Show tool response (yellow)
-                        print(f"{YELLOW}tool response:{RESET} {format_response(result_text)}", flush=True)
+                        print(f"{YELLOW}tool response:{RESET} {crop_string(result_text, 100)}", flush=True)
 
-                        # Save files from screenshot/recording responses
-                        llm_response = result_text
+                        # Download files from screenshot/recording responses
                         try:
                             data = json.loads(result_text)
-                            saved_path = save_base64_file(data, config["output_dir"])
-                            if saved_path:
-                                print(f"{GREEN}saved:{RESET} {saved_path}", flush=True)
-                            # Strip base64 before sending to LLM (too large, LLM can't use it)
-                            if "base64" in data:
-                                del data["base64"]
-                                data["saved"] = True
-                                llm_response = json.dumps(data)
+                            if "download_url" in data and "filename" in data:
+                                saved_path = download_file(
+                                    data["download_url"],
+                                    config["output_dir"],
+                                    data["filename"]
+                                )
+                                if saved_path:
+                                    print(f"{GREEN}saved:{RESET} {saved_path}", flush=True)
                         except (json.JSONDecodeError, TypeError):
                             pass
 
+                        # Pass response to LLM as-is (no base64 stripping needed)
                         messages.append({
                             "role": "tool",
                             "tool_call_id": tool_call.id,
-                            "content": llm_response,
+                            "content": result_text,
                         })
 
     except BaseException as e:

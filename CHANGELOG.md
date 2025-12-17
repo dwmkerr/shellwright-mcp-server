@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/dwmkerr/shellwright/compare/v0.1.2...v0.1.3) (2025-12-17)
+
+
+### Features
+
+* improve screenshot quality and add multiple output formats ([#10](https://github.com/dwmkerr/shellwright/issues/10)) ([d3c1115](https://github.com/dwmkerr/shellwright/commit/d3c11153d18c8a3ce46895fb9303bbbfce54fb6e))
+
 ## [0.1.2](https://github.com/dwmkerr/shellwright-mcp-server/compare/v0.1.1...v0.1.2) (2025-12-16)
 
 

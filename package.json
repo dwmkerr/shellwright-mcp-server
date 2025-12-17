@@ -1,5 +1,5 @@
 {
-  "name": "@dwmkerr/shellwright-mcp-server",
+  "name": "@dwmkerr/shellwright",
   "version": "0.1.2",
   "type": "module",
   "description": "Playwright for the shell - MCP server for terminal recording and automation",
@@ -19,12 +19,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dwmkerr/shellwright-mcp-server.git"
+    "url": "git+https://github.com/dwmkerr/shellwright.git"
   },
   "bugs": {
-    "url": "https://github.com/dwmkerr/shellwright-mcp-server/issues"
+    "url": "https://github.com/dwmkerr/shellwright/issues"
   },
-  "homepage": "https://github.com/dwmkerr/shellwright-mcp-server#readme",
+  "homepage": "https://github.com/dwmkerr/shellwright#readme",
   "keywords": [
     "mcp",
     "terminal",

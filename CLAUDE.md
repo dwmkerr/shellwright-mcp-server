@@ -9,7 +9,7 @@ Shellwright is an MCP server providing "Playwright for the shell" - enabling AI 
 ## Project Structure
 
 ```
-shellwright-mcp-server/
+shellwright/
 ├── src/                    # TypeScript source code
 │   └── index.ts           # MCP server entry point
 ├── examples/              # Demo scripts

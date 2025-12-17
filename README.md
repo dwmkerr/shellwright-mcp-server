@@ -15,8 +15,8 @@
     <a href="#configuration">Configuration</a>
   </p>
   <p align="center">
-    <a href="https://github.com/dwmkerr/shellwright-mcp-server/actions/workflows/cicd.yaml"><img src="https://github.com/dwmkerr/shellwright-mcp-server/actions/workflows/cicd.yaml/badge.svg" alt="cicd"></a>
-    <a href="https://www.npmjs.com/package/@dwmkerr/shellwright-mcp-server"><img src="https://img.shields.io/npm/v/@dwmkerr/shellwright-mcp-server" alt="npm version"></a>
+    <a href="https://github.com/dwmkerr/shellwright/actions/workflows/cicd.yaml"><img src="https://github.com/dwmkerr/shellwright/actions/workflows/cicd.yaml/badge.svg" alt="cicd"></a>
+    <a href="https://www.npmjs.com/package/@dwmkerr/shellwright"><img src="https://img.shields.io/npm/v/@dwmkerr/shellwright" alt="npm version"></a>
   </p>
 </p>
 
@@ -29,7 +29,7 @@ Configure your LLM, IDE or whatever to use the Shellwright MCP server:
   "mcpServers": {
     "shellwright": {
       "command": "npx",
-      "args": ["-y", "@dwmkerr/shellwright-mcp-server"]
+      "args": ["-y", "@dwmkerr/shellwright"]
     }
   }
 }

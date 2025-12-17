@@ -2,7 +2,7 @@ version: v2beta1
 name: shellwright
 
 vars:
-  IMAGE: ghcr.io/dwmkerr/shellwright-mcp-server
+  IMAGE: ghcr.io/dwmkerr/shellwright
 
 images:
   shellwright:

@@ -122,7 +122,13 @@ Open [`k9s`](https://k9scli.io/) and show [Ark](https://github.com/mckinsey/agen
 | `THEME` | `--theme`, `-t` | `one-dark` | Color theme (`one-dark`, `one-light`, `dracula`, `solarized-dark`, `nord`) |
 | `TEMP_DIR` | `--temp-dir` | `/tmp/shellwright` | Directory for recording frames |
 | `FONT_SIZE` | `--font-size` | `14` | Font size in pixels for screenshots/recordings |
-| `FONT_FAMILY` | `--font-family` | `SauceCodePro Nerd Font, ...` | Font family for screenshots/recordings (use a font with bold variant for bold text support) |
+| `FONT_FAMILY` | `--font-family` | `Hack, Monaco, Courier, monospace` | Font family for screenshots/recordings (use a font with bold variant for bold text support) |
+| - | `--cols` | `120` | Default terminal columns |
+| - | `--rows` | `40` | Default terminal rows |
+
+Some configuration can also be provided by the LLM, simply prompt for it:
+
+- Terminal Dimensions: e.g: "Use a terminal that is 80x24 for the recording"
 
 ## Troubleshooting
 

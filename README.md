@@ -12,7 +12,8 @@
     <a href="#quickstart">Quickstart</a> |
     <a href="#examples">Examples</a> |
     <a href="#mcp-tools">MCP Tools</a> |
-    <a href="#configuration">Configuration</a>
+    <a href="#configuration">Configuration</a> |
+    <a href="#developer-guide">Developer Guide</a>
   </p>
   <p align="center">
     <a href="https://github.com/dwmkerr/shellwright/actions/workflows/cicd.yaml"><img src="https://github.com/dwmkerr/shellwright/actions/workflows/cicd.yaml/badge.svg" alt="cicd"></a>
@@ -35,15 +36,18 @@ Configure your LLM, IDE or whatever to use the Shellwright MCP server:
 }
 ```
 
-Use a prompt such as "Open Vim. Write a message saying how to close Vim. Close Vim. Give me a screenshot of each step and a GIF recording." or check the [Examples](#examples).
+Use a prompt such as "Using shellwright, open Vim. Write a message saying how to close Vim. Close Vim. Give me a screenshot of each step and a GIF recording, save the screenshots and videos to './output'". Or check the [Examples](#examples).
 
 **Running Locally**
 
-Run the MCP server:
+Run the MCP server in HTTP mode for local development:
 
 ```bash
 npm install
-npm run dev
+npm run dev:http
+
+# Or add parameters if needed...
+npm run dev:http -- --font-size 32
 ```
 
 The server runs at `http://localhost:7498/mcp`.
@@ -115,10 +119,12 @@ Use [`htop`](https://github.com/htop-dev/htop):
 | `shell_start` | Start a new PTY session |
 | `shell_send` | Send input to a session |
 | `shell_read` | Read the terminal buffer |
-| `shell_screenshot` | Capture terminal as PNG, ANSI, and plain text |
+| `shell_screenshot` | Capture terminal as PNG. Returns `download_url` for curl |
 | `shell_record_start` | Start recording for GIF export |
-| `shell_record_stop` | Stop recording and export GIF |
+| `shell_record_stop` | Stop recording. Returns `download_url` for curl |
 | `shell_stop` | Stop a PTY session |
+
+Screenshot and recording tools return a `download_url` instead of base64 data. LLMs download files using curl (e.g., `curl -o screenshot.png <url>`). This avoids token overflow from large binary payloads.
 
 ## Configuration
 
@@ -131,6 +137,7 @@ Use [`htop`](https://github.com/htop-dev/htop):
 | `FONT_FAMILY` | `--font-family` | `Hack, Monaco, Courier, monospace` | Font family for screenshots/recordings (use a font with bold variant for bold text support) |
 | - | `--cols` | `120` | Default terminal columns |
 | - | `--rows` | `40` | Default terminal rows |
+| - | `--http` | `false` | Use HTTP transport instead of stdio |
 
 Some configuration can also be provided by the LLM, simply prompt for it:
 
@@ -165,6 +172,37 @@ cat ./k9s_initial_view.txt
 
 # Show formatted ANSI. Good for troubleshooting color codes.
 cat ./k9s_initial_view.ansi
+```
+
+## Developer Guide
+
+To test local changes with Cursor, VS Code, or other MCP clients, configure them to use your local build:
+
+```json
+{
+  "mcpServers": {
+    "shellwright-dev": {
+      "command": "npm",
+      "args": ["--prefix", "/Users/Dave_Kerr/repos/github/dwmkerr/shellwright", "start"]
+    }
+  }
+}
+```
+
+Run `npm run build` after making changes, then restart your MCP client.
+
+For HTTP mode development with hot-reload:
+
+```bash
+npm run dev:http
+```
+
+**Claude Code**
+
+Install locally for Claude Code:
+
+```bash
+claude mcp add --transport stdio shellwright-dev --scope project -- npm --prefix "${PWD}" start
 ```
 
 ## TODO

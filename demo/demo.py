@@ -136,6 +136,10 @@ async def run(prompt: str, config: dict):
 
     os.makedirs(config["output_dir"], exist_ok=True)
 
+    # Track token usage
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     try:
         async with streamablehttp_client(f"{config['shellwright_url']}/mcp") as (read, write, _):
             async with ClientSession(read, write) as session:
@@ -174,8 +178,14 @@ Use descriptive names for screenshots and recordings.""",
                     )
                     message = response.choices[0].message
 
+                    # Track token usage
+                    if response.usage:
+                        total_input_tokens += response.usage.prompt_tokens
+                        total_output_tokens += response.usage.completion_tokens
+
                     if not message.tool_calls:
-                        print(f"\n{GREEN}output saved to:{RESET} {config['output_dir']}")
+                        print(f"\n{DIM}token usage (input / output):{RESET} {total_input_tokens} / {total_output_tokens}")
+                        print(f"{GREEN}output saved to:{RESET} {config['output_dir']}")
                         break
 
                     messages.append(message)

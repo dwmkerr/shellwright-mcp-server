@@ -11,8 +11,8 @@
   <p align="center">
     <a href="#quickstart">Quickstart</a> |
     <a href="#examples">Examples</a> |
-    <a href="#mcp-tools">MCP Tools</a> |
     <a href="#configuration">Configuration</a> |
+    <a href="#mcp-tools">MCP Tools</a> |
     <a href="#developer-guide">Developer Guide</a>
   </p>
   <p align="center">
@@ -112,6 +112,10 @@ Use [`htop`](https://github.com/htop-dev/htop):
 
 ![Screenshot: Examples - HTOP](./docs/examples/htop.gif)
 
+> Open vim, create validate.py that checks if arguments are UK postcodes. Print ✓ or ✗ for each. Then run: python3 validate.py on a set of UK postcodes (valid and invalid) such as "SW1A 1AA" "INVALID" "M1 1AA". Record as a video. Take 2-3 screenshots along the way.
+
+[!Screenshot: Example - UK Postcode Validation](./docs/examples/postcode.gif)
+
 ## Configuration
 
 | Variable | Parameter | Default | Description |
@@ -124,6 +128,7 @@ Use [`htop`](https://github.com/htop-dev/htop):
 | - | `--cols` | `120` | Default terminal columns |
 | - | `--rows` | `40` | Default terminal rows |
 | - | `--http` | `false` | Use HTTP transport instead of stdio |
+| - | `--log-path` | - | Log tool calls to JSONL file (one JSON object per line) |
 
 Some configuration can also be provided by the LLM, simply prompt for it:
 
@@ -165,7 +170,7 @@ The response contains the shell session ID (as multiple shell sessions can be ru
 
 ### **shell_send**
 
-Send input to a PTY session. The 'delay' can be useful when recording videos or to make sure any previous commands have had time to execute:
+Send input to a PTY session. Returns the full terminal buffer (plain text, no ANSI codes) before and after sending input, so the LLM can see exactly what changed on screen:
 
 ```json
 {
@@ -175,11 +180,15 @@ Send input to a PTY session. The 'delay' can be useful when recording videos or 
 }
 ```
 
-The response is simply an indicator of success. This could be extended to have a snippet of stdout/stderr but we'd have to be careful about the tokens being blown out:
+The `delay_ms` parameter controls how long to wait after sending input before capturing `bufferAfter` (default: 100ms). Increase for slow commands.
+
+The response includes the terminal buffer before and after the input was sent:
 
 ```json
 {
-  "success": true
+  "success": true,
+  "bufferBefore": "$ _",
+  "bufferAfter": "$ ls -la\ntotal 24\ndrwxr-xr-x  5 user staff ...\n$ _"
 }
 ```
 
@@ -285,6 +294,8 @@ The response confirms the session was stopped:
   "success": true
 }
 ```
+
+[MCP Prompts](https://modelcontextprotocol.io/docs/concepts/prompts) are also available for common workflows like vim editing and recording sessions. See [`src/prompts.ts`](./src/prompts.ts).
 
 ## Troubleshooting
 

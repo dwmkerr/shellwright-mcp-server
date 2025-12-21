@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.log
+*.jsonl
 .env
 .DS_Store
 examples/*/screenshots/

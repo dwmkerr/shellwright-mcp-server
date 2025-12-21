@@ -9,6 +9,7 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import * as pty from "node-pty";
 import * as fs from "fs/promises";
+import * as fsSync from "fs";
 import * as path from "path";
 import xterm from "@xterm/headless";
 const { Terminal } = xterm;
@@ -16,6 +17,7 @@ import { bufferToSvg } from "./lib/buffer-to-svg.js";
 import { bufferToAnsi, bufferToText } from "./lib/buffer-to-ansi.js";
 import { Resvg, ResvgRenderOptions } from "@resvg/resvg-js";
 import { renderGif } from "./lib/render-gif.js";
+import { registerPrompts } from "./prompts.js";
 
 // Use system fonts for proper text rendering (resvg ignores them by default).
 // Scale 2x for crisp output on retina displays.
@@ -43,6 +45,7 @@ program
   .option("--cols <number>", "Default terminal columns", String(DEFAULT_COLS))
   .option("--rows <number>", "Default terminal rows", String(DEFAULT_ROWS))
   .option("--http", "Use HTTP transport instead of stdio (default: stdio)")
+  .option("--log-path <path>", "Log tool calls to JSONL file (one JSON object per line)")
   .parse();
 
 const opts = program.opts();
@@ -54,6 +57,14 @@ const FONT_SIZE = parseInt(opts.fontSize, 10);
 const FONT_FAMILY = opts.fontFamily;
 const COLS = parseInt(opts.cols, 10);
 const ROWS = parseInt(opts.rows, 10);
+const LOG_PATH = opts.logPath as string | undefined;
+
+// Log tool calls to JSONL file for debugging
+function logToolCall(tool: string, input: Record<string, unknown>, output: Record<string, unknown>): void {
+  if (!LOG_PATH) return;
+  const entry = { ts: new Date().toISOString(), tool, input, output };
+  fsSync.appendFileSync(LOG_PATH, JSON.stringify(entry) + "\n");
+}
 
 // Log to stderr in stdio mode (stdout is reserved for MCP protocol)
 function log(message: string): void {
@@ -72,6 +83,7 @@ try {
   log(`[shellwright] Font: ${FONT_FAMILY} @ ${FONT_SIZE}px`);
   log(`[shellwright] Terminal: ${COLS}x${ROWS}`);
   log(`[shellwright] Temp directory: ${TEMP_DIR}`);
+  if (LOG_PATH) log(`[shellwright] Log path: ${LOG_PATH}`);
 } catch (err) {
   console.error(`[shellwright] ${(err as Error).message}`);
   console.error(`[shellwright] Available themes: ${Object.keys(themes).join(", ")}`);
@@ -233,19 +245,28 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       sessions.set(id, session);
       log(`[shellwright] Started session ${id}: ${command}`);
 
+      const output = { shell_session_id: id };
+      logToolCall("shell_start", { command, args, cols, rows }, output);
+
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ shell_session_id: id }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
 
   server.tool(
     "shell_send",
-    "Send input to a PTY session",
+    `Send input to a PTY session. Returns the full terminal buffer (plain text, no ANSI codes) before and after sending input, so you can see exactly what changed on screen.
+
+Tips:
+- Include \\r at the end of commands to execute them (e.g., "ls -la\\r")
+- For vim: send "i" to enter insert mode BEFORE typing text, check bufferAfter for "-- INSERT --"
+- Always check bufferAfter to verify your input had the expected effect
+- Common escapes: Enter=\\r, Escape=\\x1b, Ctrl+C=\\x03, arrows=\\x1b[A/B/C/D`,
     {
       session_id: z.string().describe("Session ID"),
       input: z.string().describe("Input to send (supports escape sequences like \\x1b[A for arrow up)"),
-      delay_ms: z.number().optional().describe("Delay after sending in ms (default: 100)"),
+      delay_ms: z.number().optional().describe("Milliseconds to wait after sending input before capturing 'bufferAfter' (default: 100). Increase for slow commands."),
     },
     async ({ session_id, input, delay_ms }) => {
       const session = sessions.get(session_id);
@@ -253,21 +274,28 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
         throw new Error(`Session not found: ${session_id}`);
       }
 
+      const bufferBefore = bufferToText(session.terminal, session.cols, session.rows);
+
       const interpreted = interpretEscapes(input);
       session.pty.write(interpreted);
       log(`[shellwright] Sent to ${session_id}: ${JSON.stringify(input)}`);
 
       await new Promise((resolve) => setTimeout(resolve, delay_ms || 100));
 
+      const bufferAfter = bufferToText(session.terminal, session.cols, session.rows);
+
+      const output = { success: true, bufferBefore, bufferAfter };
+      logToolCall("shell_send", { session_id, input, delay_ms }, output);
+
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ success: true }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
 
   server.tool(
     "shell_read",
-    "Read the current terminal buffer (basic ANSI stripping - see findings for limitations)",
+    "Read the current terminal buffer as plain text (no ANSI codes)",
     {
       session_id: z.string().describe("Session ID"),
       raw: z.boolean().optional().describe("Return raw ANSI codes (default: false)"),
@@ -290,6 +318,7 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       }
 
       log(`[shellwright] Read ${content.length} chars from ${session_id}`);
+      logToolCall("shell_read", { session_id, raw }, { length: content.length });
 
       return {
         content: [{ type: "text" as const, text: content }],
@@ -339,13 +368,11 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       log(`[shellwright] Screenshot saved: ${screenshotDir}/${baseName}.{png,svg,ansi,txt}`);
 
       const downloadUrl = getDownloadUrl(getMcpSessionId(), session_id, "screenshots", filename);
+      const output = { filename, download_url: downloadUrl, hint: "Use curl -o <filename> <download_url> to save the file" };
+      logToolCall("shell_screenshot", { session_id, name }, output);
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({
-          filename,
-          download_url: downloadUrl,
-          hint: "Use curl -o <filename> <download_url> to save the file",
-        }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
@@ -371,8 +398,11 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       sessions.delete(session_id);
       log(`[shellwright] Stopped session ${session_id}`);
 
+      const output = { success: true };
+      logToolCall("shell_stop", { session_id }, output);
+
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({ success: true }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
@@ -417,12 +447,11 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
 
       log(`[shellwright] Recording started: ${session_id} @ ${recordingFps} FPS → ${framesDir}`);
 
+      const output = { recording: true, fps: recordingFps, frames_dir: framesDir };
+      logToolCall("shell_record_start", { session_id, fps }, output);
+
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({
-          recording: true,
-          fps: recordingFps,
-          frames_dir: framesDir,
-        }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
@@ -465,18 +494,16 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       log(`[shellwright] Recording saved: ${filePath} (${frameCount} frames, ${durationMs}ms)`);
 
       const downloadUrl = getDownloadUrl(getMcpSessionId(), session_id, "recordings", filename);
+      const output = { filename, download_url: downloadUrl, frame_count: frameCount, duration_ms: durationMs, hint: "Use curl -o <filename> <download_url> to save the file" };
+      logToolCall("shell_record_stop", { session_id, name }, output);
 
       return {
-        content: [{ type: "text" as const, text: JSON.stringify({
-          filename,
-          download_url: downloadUrl,
-          frame_count: frameCount,
-          duration_ms: durationMs,
-          hint: "Use curl -o <filename> <download_url> to save the file",
-        }) }],
+        content: [{ type: "text" as const, text: JSON.stringify(output) }],
       };
     }
   );
+
+  registerPrompts(server);
 
   return server;
 };

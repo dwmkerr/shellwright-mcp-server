@@ -114,7 +114,7 @@ Use [`htop`](https://github.com/htop-dev/htop):
 
 > Open vim, create validate.py that checks if arguments are UK postcodes. Print ✓ or ✗ for each. Then run: python3 validate.py on a set of UK postcodes (valid and invalid) such as "SW1A 1AA" "INVALID" "M1 1AA". Record as a video. Take 2-3 screenshots along the way.
 
-[!Screenshot: Example - UK Postcode Validation](./docs/examples/postcode.gif)
+![Screenshot: Example - UK Postcode Validation](./docs/examples/postcode.gif)
 
 ## Configuration
 
@@ -358,13 +358,6 @@ Install locally for Claude Code:
 ```bash
 claude mcp add --transport stdio shellwright-dev --scope project -- npm --prefix "${PWD}" start
 ```
-
-## TODO
-
-Ideas for the future.
-
-- Video export (MP4/MOV) via ffmpeg
-- Better logging, a bit like `hl`
 
 ## License
 

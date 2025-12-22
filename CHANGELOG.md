@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.5](https://github.com/dwmkerr/shellwright/compare/v0.1.4...v0.1.5) (2025-12-22)
+
+
+### Features
+
+* improve LLM feedback with bufferBefore/bufferAfter and logging ([#23](https://github.com/dwmkerr/shellwright/issues/23)) ([4fee834](https://github.com/dwmkerr/shellwright/commit/4fee834ba3e8c78cdc6000c2ec8e9b9a236198c1))
+
+
+### Bug Fixes
+
+* set MCP server path for Ark v0.1.49 compatibility ([c66a60b](https://github.com/dwmkerr/shellwright/commit/c66a60bcc451a3ec14ccc63e4f85879aac27a8e2))
+
 ## [0.1.4](https://github.com/dwmkerr/shellwright/compare/v0.1.3...v0.1.4) (2025-12-17)
 
 

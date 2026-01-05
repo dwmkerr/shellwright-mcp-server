@@ -26,7 +26,7 @@ const resvgOptions: ResvgRenderOptions = {
   fitTo: { mode: "zoom", value: 2 },
 };
 import { Command } from "commander";
-import { getTheme, themes, DEFAULT_THEME, Theme } from "./lib/themes.js";
+import { getTheme, themes, DEFAULT_THEME, Theme, getThemesByType } from "./lib/themes.js";
 
 const DEFAULT_FONT_SIZE = 14;
 const DEFAULT_FONT_FAMILY = "Hack, Monaco, Courier, monospace";
@@ -217,9 +217,13 @@ const createServer = (getMcpSessionId: () => string | undefined) => {
       cols: z.number().optional().describe(`Terminal columns (default: ${COLS})`),
       rows: z.number().optional().describe(`Terminal rows (default: ${ROWS})`),
       theme: z.string().optional().describe(
-        `Color theme for screenshots and recordings. Available themes: ${Object.keys(themes).join(", ")}. ` +
-        `Default: ${DEFAULT_THEME}. Each theme provides a different color palette for the terminal output. ` +
-        "Use 'one-light' for light backgrounds, or 'dracula', 'nord', 'solarized-dark' for dark alternatives."
+        (() => {
+          const { dark, light } = getThemesByType();
+          return `Color theme for screenshots and recordings. ` +
+            `Dark themes: ${dark.join(", ")}. Light themes: ${light.join(", ")}. ` +
+            `Default: ${DEFAULT_THEME}. ` +
+            Object.values(themes).map(t => `'${t.name}': ${t.description}`).join(". ") + ".";
+        })()
       ),
     },
     async ({ command, args, cols, rows, theme }) => {

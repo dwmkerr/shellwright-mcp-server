@@ -205,7 +205,15 @@ Start a session with a specific theme:
 }
 ```
 
-Available themes: `one-dark` (default), `one-light`, `dracula`, `solarized-dark`, `nord`.
+Available themes (see [Theme Guide](./docs/themes.md) for previews):
+
+| Theme | Type | Description |
+|-------|------|-------------|
+| `one-dark` | Dark | Muted, balanced colors (default) |
+| `one-light` | Light | Clean, readable colors |
+| `dracula` | Dark | Vibrant purple theme |
+| `solarized-dark` | Dark | Blue-green, easy on eyes |
+| `nord` | Dark | Arctic-inspired, cool blue tones |
 
 ![Theme: one-dark](./docs/themes/one-dark.png)
 

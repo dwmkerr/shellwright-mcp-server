@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { themes, getThemeList, getThemesByType, DEFAULT_THEME } from "./lib/themes.js";
 
 export function registerPrompts(server: McpServer): void {
   server.prompt(
@@ -85,19 +86,27 @@ Recording:
     "theme-selection",
     "Guide for choosing and using terminal themes",
     {},
-    () => ({
-      messages: [{
-        role: "user" as const,
-        content: {
-          type: "text" as const,
-          text: `Terminal theme selection guide:
+    () => {
+      const { dark, light } = getThemesByType();
+      const themeList = getThemeList();
+      const tips = Object.values(themes)
+        .filter(t => t.tip)
+        .map(t => `- '${t.name}': ${t.tip}`)
+        .join("\n");
+
+      return {
+        messages: [{
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: `Terminal theme selection guide:
 
 Available themes:
-- one-dark: Dark theme with muted colors (default)
-- one-light: Light background, good for presentations
-- dracula: Dark purple theme, popular with developers
-- solarized-dark: Dark blue-green theme, easy on eyes
-- nord: Arctic-inspired dark theme, cool blue tones
+${themeList}
+
+Dark themes: ${dark.join(", ")}
+Light themes: ${light.join(", ")}
+Default: ${DEFAULT_THEME}
 
 Usage:
 Set theme when starting a session:
@@ -107,11 +116,10 @@ Theme applies to all screenshots and recordings for that session.
 Different sessions can use different themes.
 
 Tips:
-- Use 'one-light' for light mode screenshots or presentations
-- Use 'dracula' or 'nord' for a more vibrant dark look
-- The default 'one-dark' works well for most cases`
-        }
-      }]
-    })
+${tips}`
+          }
+        }]
+      };
+    }
   );
 }

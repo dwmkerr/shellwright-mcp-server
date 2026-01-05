@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/dwmkerr/shellwright/compare/v0.1.6...v0.1.7) (2026-01-05)
+
+
+### Features
+
+* add per-session theme selection via shell_start ([#35](https://github.com/dwmkerr/shellwright/issues/35)) ([4642364](https://github.com/dwmkerr/shellwright/commit/4642364952e17cf96d6cd7caed07cbf5f706763c))
+
 ## [0.1.6](https://github.com/dwmkerr/shellwright/compare/v0.1.5...v0.1.6) (2026-01-04)
 
 

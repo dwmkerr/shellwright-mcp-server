@@ -127,6 +127,10 @@ Use [`htop`](https://github.com/htop-dev/htop):
 # Install for current project. Use '--scope user' for for user-wide.
 claude mcp add --scope project shellwright -- npx -y @dwmkerr/shellwright
 
+# Configure via command line parameters (or env vars) if needed.
+claude mcp add --scope project shellwright -- npx -y @dwmkerr/shellwright \
+  --log-path /tmp/shellwright/log.jsonl
+
 # Uninstall. Same comment on 'scope'.
 claude mcp remove --scope project shellwright
 ```
@@ -163,6 +167,7 @@ Add to your MCP configuration file:
 Some configuration can also be provided by the LLM, simply prompt for it:
 
 - Terminal Dimensions: e.g: "Use a terminal that is 80x24 for the recording"
+- Theme: e.g: "Use the dracula theme for this recording" (can be set per-session via `shell_start`)
 
 ## MCP Tools
 
@@ -178,7 +183,7 @@ Some configuration can also be provided by the LLM, simply prompt for it:
 
 ### **shell_start**
 
-Start a new PTY session with a command. Columns and rows are optional and the defaults can be set in the [Configuration](#Configuration):
+Start a new PTY session with a command. Columns, rows, and theme are optional and the defaults can be set in the [Configuration](#Configuration):
 
 Start a shell session running `bash`:
 
@@ -190,11 +195,26 @@ Start a shell session running `bash`:
 }
 ```
 
-The response contains the shell session ID (as multiple shell sessions can be run):
+Start a session with a specific theme:
 
 ```json
 {
-  "shell_session_id": "shell-session-a1b2c3"
+  "command": "bash",
+  "args": ["--login", "-i"],
+  "theme": "dracula"
+}
+```
+
+Available themes: `one-dark` (default), `one-light`, `dracula`, `solarized-dark`, `nord`.
+
+![Theme: one-dark](./docs/themes/one-dark.png)
+
+The response contains the shell session ID and theme (as multiple shell sessions can be run):
+
+```json
+{
+  "shell_session_id": "shell-session-a1b2c3",
+  "theme": "dracula"
 }
 ```
 

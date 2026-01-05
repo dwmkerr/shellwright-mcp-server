@@ -80,4 +80,38 @@ Recording:
       }]
     })
   );
+
+  server.prompt(
+    "theme-selection",
+    "Guide for choosing and using terminal themes",
+    {},
+    () => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Terminal theme selection guide:
+
+Available themes:
+- one-dark: Dark theme with muted colors (default)
+- one-light: Light background, good for presentations
+- dracula: Dark purple theme, popular with developers
+- solarized-dark: Dark blue-green theme, easy on eyes
+- nord: Arctic-inspired dark theme, cool blue tones
+
+Usage:
+Set theme when starting a session:
+  shell_start({ command: "bash", args: ["--login", "-i"], theme: "dracula" })
+
+Theme applies to all screenshots and recordings for that session.
+Different sessions can use different themes.
+
+Tips:
+- Use 'one-light' for light mode screenshots or presentations
+- Use 'dracula' or 'nord' for a more vibrant dark look
+- The default 'one-dark' works well for most cases`
+        }
+      }]
+    })
+  );
 }

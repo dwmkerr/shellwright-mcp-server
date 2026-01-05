@@ -155,7 +155,7 @@ Add to your MCP configuration file:
 | Variable | Parameter | Default | Description |
 |----------|-----------|---------|-------------|
 | `PORT` | `--port`, `-p` | `7498` | Server port ("SWRT" on a phone keypad) |
-| `THEME` | `--theme`, `-t` | `one-dark` | Color theme (`one-dark`, `one-light`, `dracula`, `solarized-dark`, `nord`, etc) |
+| `THEME` | `--theme`, `-t` | `one-dark` | Color theme (`one-dark`, `one-light`, `dracula`, `solarized-dark`, `nord`, [etc...](./docs/themes.md) |
 | `TEMP_DIR` | `--temp-dir` | `/tmp/shellwright` | Directory for recording frames |
 | `FONT_SIZE` | `--font-size` | `14` | Font size in pixels for screenshots/recordings |
 | `FONT_FAMILY` | `--font-family` | `Hack, Monaco, Courier, monospace` | Font family for screenshots/recordings (use a font with bold variant for bold text support) |
@@ -217,7 +217,7 @@ Available themes (see [Theme Guide](./docs/themes.md) for previews):
 
 ![Theme: one-dark](./docs/themes/one-dark.png)
 
-The response contains the shell session ID and theme (as multiple shell sessions can be run):
+The response contains the shell session ID (as multiple shell sessions can be run) and theme:
 
 ```json
 {

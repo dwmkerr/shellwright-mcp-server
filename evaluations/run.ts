@@ -4,6 +4,7 @@
  * Iterates through scenarios and generates recordings from prompt.md files.
  */
 
+import "dotenv/config";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import * as fs from "fs/promises";
 import * as path from "path";

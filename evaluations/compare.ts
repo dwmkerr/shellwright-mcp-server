@@ -16,13 +16,12 @@ interface ScenarioComparison {
   recorded: { exists: boolean; sizeKb?: string };
 }
 
-async function getFileStats(filePath: string): Promise<{ exists: boolean; sizeKb?: string; sizeBytes?: number }> {
+async function getFileStats(filePath: string): Promise<{ exists: boolean; sizeKb?: string }> {
   try {
     const stat = await fs.stat(filePath);
     return {
       exists: true,
       sizeKb: `${(stat.size / 1024).toFixed(1)}KB`,
-      sizeBytes: stat.size,
     };
   } catch {
     return { exists: false };
@@ -34,26 +33,22 @@ async function getScenarioComparison(scenarioPath: string): Promise<ScenarioComp
   const baselinePath = path.join(scenarioPath, "baseline.gif");
   const recordedPath = path.join(scenarioPath, "recording.gif");
 
-  const baseline = await getFileStats(baselinePath);
-  const recorded = await getFileStats(recordedPath);
-
   return {
     name,
-    baseline,
-    recorded,
+    baseline: await getFileStats(baselinePath),
+    recorded: await getFileStats(recordedPath),
   };
 }
 
 function getBaselineUrl(scenario: string): string {
   const repo = process.env.GITHUB_REPOSITORY || "dwmkerr/shellwright";
-  return `https://raw.githubusercontent.com/${repo}/main/evaluations/scenarios/${scenario}/baseline.gif`;
+  const branch = process.env.GITHUB_HEAD_REF || "main";
+  return `https://raw.githubusercontent.com/${repo}/${branch}/evaluations/scenarios/${scenario}/baseline.gif`;
 }
 
 function getRecordedUrl(scenario: string): string | null {
   const previewUrl = process.env.PREVIEW_URL;
   if (!previewUrl) return null;
-  // Preview URL is like https://owner.github.io/repo/pr-preview/pr-123/
-  // Files are at: {previewUrl}{scenario}/recording.gif
   return `${previewUrl}${scenario}/recording.gif`;
 }
 
@@ -69,55 +64,37 @@ async function main() {
     }
   }
 
-  // Output comparison table
-  console.log("## Recording Evaluation Results\n");
-  console.log("| Scenario | Baseline | Recorded | Status |");
-  console.log("|----------|----------|----------|--------|");
+  console.log("## Recording Evaluation\n");
+  console.log("| Scenario | Baseline | PR |");
+  console.log("|----------|----------|-----|");
 
   for (const c of comparisons) {
-    const baselineSize = c.baseline.sizeKb || "❌ Missing";
-    const recordedSize = c.recorded.sizeKb || "❌ Missing";
-    let status = "⚠️ Review";
-    if (!c.baseline.exists && c.recorded.exists) status = "🆕 New";
-    if (c.baseline.exists && !c.recorded.exists) status = "❌ Failed";
-    if (c.baseline.exists && c.recorded.exists) status = "✅ Compare";
-    console.log(`| ${c.name} | ${baselineSize} | ${recordedSize} | ${status} |`);
-  }
-
-  // Show side-by-side comparisons
-  console.log("\n### Side-by-Side Comparisons\n");
-
-  for (const c of comparisons) {
-    console.log(`#### ${c.name}\n`);
-    console.log("| Baseline | Recorded |");
-    console.log("|----------|----------|");
-
-    const baselineCell = c.baseline.exists
+    const baselineSize = c.baseline.exists ? c.baseline.sizeKb : "❌ Missing";
+    const baselineImg = c.baseline.exists
       ? `![baseline](${getBaselineUrl(c.name)})`
-      : "No baseline";
+      : "";
 
     const recordedUrl = getRecordedUrl(c.name);
-    const recordedCell = c.recorded.exists
-      ? recordedUrl
-        ? `![recorded](${recordedUrl})`
-        : `✅ Generated (${c.recorded.sizeKb}) - download artifact`
-      : "❌ Not generated";
+    const recordedSize = c.recorded.exists ? c.recorded.sizeKb : "❌ Missing";
+    const recordedImg = c.recorded.exists && recordedUrl
+      ? `![recorded](${recordedUrl})`
+      : c.recorded.exists
+        ? "*(download artifact)*"
+        : "";
 
-    console.log(`| ${baselineCell} | ${recordedCell} |\n`);
+    console.log(`| **${c.name}** | ${baselineSize}<br/>${baselineImg} | ${recordedSize}<br/>${recordedImg} |`);
   }
 
-  // Summary
+  // Notes
   const hasFailures = comparisons.some(c => !c.recorded.exists);
   const hasNew = comparisons.some(c => !c.baseline.exists && c.recorded.exists);
 
+  if (hasNew || hasFailures) console.log("");
   if (hasNew) {
-    console.log("\n> **Note:** New recordings need baseline files. Run locally and commit baseline.gif files.\n");
+    console.log("> **Note:** New recordings need baseline files. Run locally and commit baseline.gif files.");
   }
   if (hasFailures) {
-    console.log("\n> **Warning:** Some recordings failed to generate.\n");
-  }
-  if (!process.env.PREVIEW_URL) {
-    console.log("\n> **Note:** Running locally - recorded images not hosted. Set PREVIEW_URL to embed.\n");
+    console.log("> **Warning:** Some recordings failed to generate.");
   }
 }
 

@@ -58,6 +58,7 @@ jobs:
         env:
           PREVIEW_URL: ${{ steps.preview.outputs.preview-url }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
         run: npm run compare >> $GITHUB_STEP_SUMMARY
 
       - name: Upload recordings

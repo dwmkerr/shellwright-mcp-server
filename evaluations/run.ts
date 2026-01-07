@@ -4,14 +4,31 @@
  * Iterates through scenarios and generates recordings from prompt.md files.
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ override: true });
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { execSync } from "child_process";
 
 const SCENARIOS_DIR = path.join(import.meta.dirname, "scenarios");
-const ROOT_DIR = path.join(import.meta.dirname, "..");
+const LOGS_DIR = path.join(import.meta.dirname, "logs");
+const SHELLWRIGHT_LOG = path.join(LOGS_DIR, "shellwright.jsonl");
+const AGENT_LOG = path.join(LOGS_DIR, "agent.jsonl");
+
+// Resolve shellwright repo root - allows us to run the evaluations code and
+// specify exactly where to find the raw code for the MCP server (as we
+// evaluate against the local code).
+function getShellwrightRoot(): string {
+  const envPath = process.env.SHELLWRIGHT_ROOT;
+  if (envPath) {
+    return path.resolve(import.meta.dirname, envPath);
+  }
+  // Default: parent directory of evaluations
+  return path.resolve(import.meta.dirname, "..");
+}
+
+const ROOT_DIR = getShellwrightRoot();
 
 interface ScenarioResult {
   name: string;
@@ -44,18 +61,21 @@ async function runScenario(scenarioPath: string): Promise<ScenarioResult> {
 
   try {
     let toolsCalled = 0;
+    const mcpScript = path.join(ROOT_DIR, "dist/index.js");
+    console.log(`  Starting agent with MCP server: ${mcpScript}`);
     for await (const message of query({
-      prompt: `You are testing shellwright, a terminal recording tool. Execute the following scenario and create a recording.
+      prompt: `You have access to shellwright MCP tools for terminal recording. Use the shellwright tools (mcp__shellwright__shell_start, mcp__shellwright__shell_send, mcp__shellwright__shell_record_start, mcp__shellwright__shell_record_stop, etc.) to execute the following scenario.
 
 Save the recording as "recording" (it will become recording.gif).
 
 ${prompt}`,
       options: {
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
         mcpServers: {
           shellwright: {
             command: "node",
-            args: ["dist/index.js"],
-            cwd: ROOT_DIR,
+            args: [mcpScript, "--log-path", SHELLWRIGHT_LOG],
           },
         },
       },
@@ -74,10 +94,12 @@ ${prompt}`,
           }
         }
       } else if (message.type === "result") {
+        console.log(`  Result: ${message.subtype} (${toolsCalled} tools called)`);
         if (toolsCalled === 0) {
           throw new Error("No tools were called - check API key and MCP server configuration");
         }
-        console.log(`  Completed: ${message.subtype} (${toolsCalled} tools called)`);
+      } else {
+        console.log(`  Message type: ${message.type}`);
       }
     }
 
@@ -103,7 +125,14 @@ async function main() {
     process.exit(1);
   }
 
+  // Create logs directory
+  await fs.mkdir(LOGS_DIR, { recursive: true });
+
+  // Set agent log path
+  process.env.CLAUDE_AGENT_LOG = AGENT_LOG;
+
   // Build shellwright first
+  console.log(`Shellwright root: ${ROOT_DIR}`);
   console.log("Building shellwright...");
   execSync("npm run build", { stdio: "inherit", cwd: ROOT_DIR });
 
@@ -126,6 +155,10 @@ async function main() {
     const status = r.success ? "✓" : "✗";
     console.log(`${status} ${r.name}: ${r.success ? r.gifPath : r.error}`);
   }
+
+  console.log("\n=== Logs ===");
+  console.log(`Shellwright: ${SHELLWRIGHT_LOG}`);
+  console.log(`Agent: ${AGENT_LOG}`);
 
   const failed = results.filter((r) => !r.success);
   if (failed.length > 0) {

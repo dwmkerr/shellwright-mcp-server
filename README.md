@@ -39,7 +39,7 @@ Configure your LLM, IDE or whatever to use the Shellwright MCP server:
 
 Use a prompt such as "Using shellwright, open Vim. Write a message saying how to close Vim. Close Vim. Give me a screenshot of each step and a GIF recording, save the screenshots and videos to './output'". Or check the [Examples](#examples).
 
-Check the [Installation](#installation) guide for how to setup Claude Code and other clients.
+Check the [Installation](#installation) guide for how to setup Claude Code and other clients. I also use this to create rich recordings for my book [Effective Shell](https://effective-shell.com).
 
 **Running Locally**
 

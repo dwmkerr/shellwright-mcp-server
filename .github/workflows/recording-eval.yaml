@@ -5,7 +5,9 @@ on:
     types: [opened, reopened, synchronize, closed]
   workflow_dispatch:
 
-concurrency: preview-${{ github.ref }}
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   evaluate:

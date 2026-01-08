@@ -13,8 +13,17 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        if: github.event.action != 'closed'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-hack-ttf neovim
+          fc-cache -fv
 
       - name: Setup Node.js
         if: github.event.action != 'closed'
@@ -22,6 +31,10 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+
+      - name: Install Claude CLI
+        if: github.event.action != 'closed'
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Install shellwright dependencies
         if: github.event.action != 'closed'
@@ -39,8 +52,6 @@ jobs:
       - name: Run evaluations
         if: github.event.action != 'closed'
         working-directory: evaluations
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm start
 
       - name: Generate comparison

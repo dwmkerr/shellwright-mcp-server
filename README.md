@@ -393,14 +393,18 @@ cat ./k9s_initial_view.ansi
 
 ## Developer Guide
 
-To test local changes with Cursor, VS Code, or other MCP clients, configure them to use your local build:
+To test local changes with Cursor, VS Code, or other MCP clients, first build the project then configure them to use your local build:
+
+```bash
+npm run build
+```
 
 ```json
 {
   "mcpServers": {
     "shellwright-dev": {
-      "command": "npm",
-      "args": ["--prefix", "/Users/Dave_Kerr/repos/github/dwmkerr/shellwright", "start"]
+      "command": "node",
+      "args": ["/path/to/shellwright/dist/index.js"]
     }
   }
 }
@@ -419,8 +423,9 @@ npm run dev:http
 To test local development changes with Claude Code, add the local build as an MCP server:
 
 ```bash
-# From the shellwright repo root
-claude mcp add --transport stdio shellwright-dev --scope project -- npm --prefix "${PWD}" start
+# From the shellwright repo root - build first!
+npm run build
+claude mcp add shellwright-dev --scope project -- node "${PWD}/dist/index.js"
 ```
 
 This registers your local build so you can test changes before publishing.

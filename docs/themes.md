@@ -23,6 +23,7 @@ Or prompt your agent to use a specific theme, e.g:
 | [`dracula`](https://draculatheme.com) | Dark | Dark purple theme with vibrant colors |
 | [`solarized-dark`](https://ethanschoonover.com/solarized) | Dark | Dark blue-green theme, easy on the eyes |
 | [`nord`](https://nordtheme.com) | Dark | Arctic-inspired theme with cool blue tones |
+| `nab` | Dark | Warm burnt orange theme with earthy tones |
 
 ## Theme Previews
 
@@ -55,6 +56,12 @@ Dark blue-green theme, easy on the eyes. Designed for long coding sessions with 
 Arctic-inspired theme with cool blue tones. Clean and modern aesthetic.
 
 ![nord theme](./themes/nord.svg)
+
+### nab
+
+Warm burnt orange theme with earthy tones.
+
+![nab theme](./themes/nab.svg)
 
 ## Tips
 

@@ -59,6 +59,12 @@ const COLS = parseInt(opts.cols, 10);
 const ROWS = parseInt(opts.rows, 10);
 const LOG_PATH = opts.logPath as string | undefined;
 
+// Ensure log directory exists
+if (LOG_PATH) {
+  const logDir = path.dirname(LOG_PATH);
+  fsSync.mkdirSync(logDir, { recursive: true });
+}
+
 // Log tool calls to JSONL file for debugging
 function logToolCall(tool: string, input: Record<string, unknown>, output: Record<string, unknown>): void {
   if (!LOG_PATH) return;

@@ -393,7 +393,11 @@ cat ./k9s_initial_view.ansi
 
 ## Developer Guide
 
-To test local changes with Cursor, VS Code, or other MCP clients, configure them to use your local build:
+To test local changes with Cursor, VS Code, or other MCP clients, first build the project then configure them to use your local build:
+
+```bash
+npm run build
+```
 
 ```json
 {
@@ -405,8 +409,6 @@ To test local changes with Cursor, VS Code, or other MCP clients, configure them
   }
 }
 ```
-
-> **Note:** Use `node` directly instead of `npm start` to avoid npm environment variables polluting spawned shell sessions (which can break shell prompts and cause nvm/pyenv conflicts).
 
 Run `npm run build` after making changes, then restart your MCP client.
 

@@ -49,7 +49,7 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
-        run: npm run compare >> $GITHUB_STEP_SUMMARY
+        run: npm run compare
 
       - name: Deploy recordings to GitHub Pages
         uses: rossjrw/pr-preview-action@v1

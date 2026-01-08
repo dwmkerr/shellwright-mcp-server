@@ -32,7 +32,27 @@
       </tr>
     </thead>
     <tbody>
-      <!-- ROWS -->
+      {{#each scenarios}}
+      <tr>
+        <td class="scenario"><strong>{{name}}</strong></td>
+        <td class="preview">
+          <div class="size">{{#if baselineSize}}{{baselineSize}}{{else}}Missing{{/if}}</div>
+          {{#if baselineSize}}
+            <img src="{{baselineUrl}}" alt="baseline">
+          {{else}}
+            <span class="missing">No baseline</span>
+          {{/if}}
+        </td>
+        <td class="preview">
+          <div class="size">{{#if recordedSize}}{{recordedSize}}{{else}}Missing{{/if}}</div>
+          {{#if recordedSize}}
+            <img src="./{{name}}/recording.gif" alt="recorded">
+          {{else}}
+            <span class="missing">Not generated</span>
+          {{/if}}
+        </td>
+      </tr>
+      {{/each}}
     </tbody>
   </table>
 </body>

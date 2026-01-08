@@ -512,17 +512,23 @@ Tips:
 
       await fs.mkdir(recordingsDir, { recursive: true });
 
-      // Render GIF
-      await renderGif(framesDir, filePath, { fps });
+      const result = await renderGif(framesDir, filePath, { fps });
 
       // Cleanup frames (keep the GIF for diagnostics)
       await fs.rm(framesDir, { recursive: true, force: true });
       session.recording = undefined;
 
-      log(`[shellwright] Recording saved: ${filePath} (${frameCount} frames, ${durationMs}ms)`);
+      const originalFrames = frameCount;
+      log(`[shellwright] Recording saved: ${filePath} (${result.frameCount}/${originalFrames} frames, ${result.duplicatesSkipped} deduplicated, ${durationMs}ms)`);
 
       const downloadUrl = getDownloadUrl(getMcpSessionId(), session_id, "recordings", filename);
-      const output = { filename, download_url: downloadUrl, frame_count: frameCount, duration_ms: durationMs, hint: "Use curl -o <filename> <download_url> to save the file" };
+      const output = {
+        filename,
+        download_url: downloadUrl,
+        frame_count: result.frameCount,
+        duration_ms: durationMs,
+        hint: "Use curl -o <filename> <download_url> to save the file"
+      };
       logToolCall("shell_record_stop", { session_id, name }, output);
 
       return {

@@ -46,8 +46,10 @@ async function findGeneratedGif(): Promise<string | null> {
         return path.join(tempDir, entry.toString());
       }
     }
-  } catch {
-    // Ignore errors
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
   }
   return null;
 }
@@ -86,11 +88,7 @@ ${prompt}`,
             toolsCalled++;
             console.log(`  Tool: ${block.name}`);
           } else if (block.type === "text") {
-            const text = block.text;
-            if (text.includes("Invalid API key")) {
-              throw new Error("Invalid or missing ANTHROPIC_API_KEY. Set it with: export ANTHROPIC_API_KEY=your-key");
-            }
-            console.log(`  Assistant: ${text.slice(0, 100)}...`);
+            console.log(`  Assistant: ${block.text.slice(0, 100)}...`);
           }
         }
       } else if (message.type === "result") {

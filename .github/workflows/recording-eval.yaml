@@ -36,17 +36,6 @@ jobs:
         if: github.event.action != 'closed'
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Configure Claude CLI
-        if: github.event.action != 'closed'
-        run: |
-          mkdir -p ~/.claude
-          cat > ~/.claude/settings.json << 'EOF'
-          {
-            "theme": "dark",
-            "hasCompletedOnboarding": true
-          }
-          EOF
-
       - name: Install shellwright dependencies
         if: github.event.action != 'closed'
         run: npm ci

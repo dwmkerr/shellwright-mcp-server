@@ -75,6 +75,10 @@ ${prompt}`,
         },
       },
     })) {
+      // Debug: log all message types
+      if (message.type !== "assistant" && message.type !== "user" && message.type !== "result") {
+        console.log(`  [debug] Message type: ${message.type}`);
+      }
       if (message.type === "assistant") {
         for (const block of message.message.content) {
           if (block.type === "tool_use") {
@@ -87,9 +91,17 @@ ${prompt}`,
       } else if (message.type === "user") {
         // Capture tool results to extract download_url
         for (const block of message.message.content) {
-          if (block.type === "tool_result" && typeof block.content === "string") {
+          if (block.type === "tool_result") {
+            const content = typeof block.content === "string"
+              ? block.content
+              : Array.isArray(block.content)
+                ? block.content.map((c: { text?: string }) => c.text || "").join("")
+                : JSON.stringify(block.content);
+            if (content.includes("download_url")) {
+              console.log(`  Tool result with download_url: ${content.slice(0, 200)}`);
+            }
             try {
-              const result = JSON.parse(block.content);
+              const result = JSON.parse(content);
               if (result.download_url) {
                 downloadUrl = result.download_url;
                 console.log(`  Download URL: ${downloadUrl}`);

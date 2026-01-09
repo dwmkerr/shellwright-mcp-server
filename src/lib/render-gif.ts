@@ -6,10 +6,21 @@ import gifenc from "gifenc";
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as crypto from "crypto";
 
 export interface RenderGifOptions {
   fps?: number;
   loop?: number; // 0 = infinite
+}
+
+export interface RenderGifResult {
+  frameCount: number;
+  duplicatesSkipped: number;
+  durationMs: number;
+}
+
+function computeFrameHash(data: Uint8Array): string {
+  return crypto.createHash("md5").update(data).digest("hex");
 }
 
 /**
@@ -19,7 +30,7 @@ export async function renderGif(
   framesDir: string,
   outputPath: string,
   options: RenderGifOptions = {}
-): Promise<{ frameCount: number; durationMs: number }> {
+): Promise<RenderGifResult> {
   const { Jimp } = await import("jimp");
 
   const fps = options.fps || 10;
@@ -46,16 +57,50 @@ export async function renderGif(
 
   const gif = GIFEncoder();
 
+  let framesWritten = 0;
+  let duplicatesSkipped = 0;
+  let totalDurationMs = 0;
+
+  let lastFrameHash: string | null = null;
+  let pendingFrame: {
+    indexed: Uint8Array;
+    palette: number[][];
+    accumulatedDelay: number;
+  } | null = null;
+
   for (const file of pngFiles) {
     const framePath = path.join(framesDir, file);
     const image = await Jimp.read(framePath);
     const rgba = new Uint8Array(image.bitmap.data);
 
-    // Quantize to 256-color palette and apply
     const palette = quantize(rgba, 256);
     const indexed = applyPalette(rgba, palette);
+    const frameHash = computeFrameHash(rgba);
 
-    gif.writeFrame(indexed, width, height, { palette, delay });
+    if (frameHash === lastFrameHash && pendingFrame) {
+      pendingFrame.accumulatedDelay += delay;
+      duplicatesSkipped++;
+    } else {
+      if (pendingFrame) {
+        gif.writeFrame(pendingFrame.indexed, width, height, {
+          palette: pendingFrame.palette,
+          delay: pendingFrame.accumulatedDelay,
+        });
+        totalDurationMs += pendingFrame.accumulatedDelay;
+        framesWritten++;
+      }
+      pendingFrame = { indexed, palette, accumulatedDelay: delay };
+      lastFrameHash = frameHash;
+    }
+  }
+
+  if (pendingFrame) {
+    gif.writeFrame(pendingFrame.indexed, width, height, {
+      palette: pendingFrame.palette,
+      delay: pendingFrame.accumulatedDelay,
+    });
+    totalDurationMs += pendingFrame.accumulatedDelay;
+    framesWritten++;
   }
 
   gif.finish();
@@ -63,7 +108,8 @@ export async function renderGif(
   await fs.writeFile(outputPath, gif.bytes());
 
   return {
-    frameCount: pngFiles.length,
-    durationMs: pngFiles.length * delay,
+    frameCount: framesWritten,
+    duplicatesSkipped,
+    durationMs: totalDurationMs,
   };
 }

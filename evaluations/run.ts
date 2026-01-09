@@ -37,21 +37,13 @@ interface ScenarioResult {
   error?: string;
 }
 
-async function findGeneratedGif(): Promise<string | null> {
-  const tempDir = "/tmp/shellwright";
-  try {
-    const entries = await fs.readdir(tempDir, { recursive: true });
-    for (const entry of entries) {
-      if (entry.toString().endsWith("recording.gif")) {
-        return path.join(tempDir, entry.toString());
-      }
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw err;
-    }
+async function downloadGif(url: string, destPath: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download GIF: ${response.status}`);
   }
-  return null;
+  const buffer = await response.arrayBuffer();
+  await fs.writeFile(destPath, Buffer.from(buffer));
 }
 
 async function runScenario(scenarioPath: string): Promise<ScenarioResult> {
@@ -63,6 +55,7 @@ async function runScenario(scenarioPath: string): Promise<ScenarioResult> {
 
   try {
     let toolsCalled = 0;
+    let gifPath: string | null = null;
     const mcpScript = path.join(ROOT_DIR, "dist/index.js");
     console.log(`  Starting agent with MCP server: ${mcpScript}`);
     for await (const message of query({
@@ -91,22 +84,39 @@ ${prompt}`,
             console.log(`  Assistant: ${block.text.slice(0, 100)}...`);
           }
         }
+      } else if (message.type === "user") {
+        // Capture tool results to extract download_url
+        for (const block of message.message.content) {
+          if (block.type === "tool_result") {
+            const content = typeof block.content === "string"
+              ? block.content
+              : Array.isArray(block.content)
+                ? block.content.map((c: { text?: string }) => c.text || "").join("")
+                : JSON.stringify(block.content);
+            let parsed;
+            try {
+              parsed = JSON.parse(content);
+            } catch {
+              continue; // Not JSON, skip
+            }
+            if (parsed.download_url && !gifPath) {
+              const dest = path.join(scenarioPath, "recording.gif");
+              console.log(`  Downloading: ${parsed.download_url}`);
+              await downloadGif(parsed.download_url, dest);
+              gifPath = dest;
+              console.log(`  ✓ Recording saved: ${gifPath}`);
+            }
+          }
+        }
       } else if (message.type === "result") {
         console.log(`  Result: ${message.subtype} (${toolsCalled} tools called)`);
         if (toolsCalled === 0) {
           throw new Error("No tools were called - check API key and MCP server configuration");
         }
-      } else {
-        console.log(`  Message type: ${message.type}`);
       }
     }
 
-    // Find and copy the generated GIF
-    const tempGif = await findGeneratedGif();
-    if (tempGif) {
-      const gifPath = path.join(scenarioPath, "recording.gif");
-      await fs.copyFile(tempGif, gifPath);
-      console.log(`  ✓ Recording saved: ${gifPath}`);
+    if (gifPath) {
       return { name: scenarioName, success: true, gifPath };
     }
 
